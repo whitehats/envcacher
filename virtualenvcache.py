@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import logging as log
 import argparse
 import contextlib
 import fileinput
@@ -47,6 +48,10 @@ class Options(object):
         parser.add_argument('--fix-pip', action='store_true',
                             help='fix pip problem with missing uses_fragment')
 
+        parser.add_argument('-v', '--verbose', action='store_true',
+                            default=False,
+                            help='print verbose informations while processing')
+
         return parser
 
     def parse(self):
@@ -58,6 +63,7 @@ class Options(object):
         self.directory = args.directory[0]
         self.keep_broken = bool(args.keep_broken)
         self.fix_pip = bool(args.fix_pip)
+        self.verbose = bool(args.verbose)
 
         self.activate_script = None
         if args.activate_script:
@@ -228,9 +234,19 @@ class VirtualEnvCache(object):
 
 def main():
     ''' Entry point. '''
+    logger = log.getLogger()
+    logger.setLevel(log.INFO)
+    console = log.StreamHandler()
+    console.setFormatter(log.Formatter("%(levelname)10s - %(message)s"))
+    logger.addHandler(console)
+    log.info('start virtualenvcache')
 
     opts = Options()
     opts.parse()
+
+    if opts.verbose:
+        logger.setLevel(log.DEBUG)
+        log.debug('Turn on debug mode')
 
     reqs = RequirementsKey(opts)
 
