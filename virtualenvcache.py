@@ -97,7 +97,7 @@ class RequirementsKey(KeyBase):
         KeyBase.__init__(self, options)
 
         with contextlib.closing(fileinput.input(options.requirements)) \
-        as handle:
+                as handle:
             self.requirements = requirements.Requirements(handle)
 
     def get_key(self):
@@ -146,8 +146,8 @@ class VirtualEnv(object):
             fragments_file = 'local/lib/python2.7/site-packages/' \
                              'pip-1.1-py2.7.egg/pip/vcs/__init__.py'
             ve.execlp("sed", "-ie",
-                "/urlparse.uses_fragment.extend(self.schemes)/d",
-                ve.local_path(fragments_file))
+                      "/urlparse.uses_fragment.extend(self.schemes)/d",
+                      ve.local_path(fragments_file))
             ve.unlink(fragments_file + 'c')
 
         key.initialize(ve)
@@ -234,9 +234,9 @@ class VirtualEnvCache(object):
             except Exception:
                 log.exception('error ocured while building virtualenv')
                 if not self.options.keep_broken and\
-                    os.path.exists(self.__path(key)):
-                    log.debug('removing broken virtualenv')
-                    shutil.rmtree(self.__path(key))
+                        os.path.exists(self.__path(key)):
+                        log.debug('removing broken virtualenv')
+                        shutil.rmtree(self.__path(key))
                 else:
                     log.debug('keeping broken virtualenv')
                 raise

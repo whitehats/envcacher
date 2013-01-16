@@ -5,6 +5,7 @@ Created on 03-07-2012
 '''
 
 import re
+import urlparse
 
 
 class Requirement(object):
@@ -45,9 +46,9 @@ def is_vcs(word):
 
 def natural_sort(l):
     ''' Sort list of strings according to natural keys. '''
-    convert = lambda text:int(text) if text.isdigit() else text.lower()
-    alphanum_key = lambda key:[convert(c) for c in re.split('([0-9]+)', key)]
-    return sorted(l, key = alphanum_key)
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(l, key=alphanum_key)
 
 
 def common_req(a, b, d):
@@ -60,7 +61,9 @@ def common_req(a, b, d):
 
     if is_vcs(a.url) and is_vcs(b.url):
         if a.url != b.url:
-            raise ConflictingRequirementsError('Two different VCS sources for a single package: {!r}, {!r}'.format(a, b))
+            raise ConflictingRequirementsError(
+                'Two different VCS sources for a single package: {!r}, {!r}'
+                .format(a, b))
         c.url = a.url
     elif is_vcs(b.url):
         c.url = b.url
@@ -68,7 +71,9 @@ def common_req(a, b, d):
         c.url = a.url
 
     if a.op and b.op and is_vcs(c.url):
-        raise ConflictingRequirementsError('Cannot specify a version for a VCS source: {!r}, {!r}'.format(a, b))
+        raise ConflictingRequirementsError(
+            'Cannot specify a version for a VCS source: {!r}, {!r}'
+            .format(a, b))
 
     if a.op is None:
         # a has no version requirements, we can copy whatever b has
@@ -83,7 +88,7 @@ def common_req(a, b, d):
         c.version = natural_sort([a.version, b.version])[-1]
         if ((a.op == '==' and a.version != c.version) or
             (b.op == '==' and b.version != c.version)):
-            raise ConflictingRequirementsError('Required version mismatch: {!r}, {!r}'.format(a,b))
+            raise ConflictingRequirementsError('Required version mismatch: {!r}, {!r}'.format(a, b))
 
     d.params = c.params
     d.name = c.name
@@ -114,7 +119,7 @@ class Requirements(object):
         ''' Load requirements from a pip requirements file. '''
 
         re_package = '(?P<package>[A-Za-z][A-Za-z0-9_.-]*)'
-        re_version = '(?P<version>[0-9][0-9.]*)'
+        re_version = '(?P<version>[0-9][A-Za-z0-9.]*)'
         re_eq_operator = '(?P<eqop>==)'
         re_geq_operator = '(?P<geqop>>=)'
         re_any_operator = '(?:{re_eq_operator}|{re_geq_operator})'.format(**locals())
@@ -123,7 +128,7 @@ class Requirements(object):
 
         for line in handle:
             line = line.strip()
-            if len(line) == 0:
+            if len(line) == 0 or line.startswith('#'):
                 continue
 
             words = line.split()
@@ -138,15 +143,13 @@ class Requirements(object):
             if words[0] == '-e':
                 req.params.add('-e')
                 words = words[1:]
-
             if is_vcs(words[0]):
                 match = re.search('#egg=({})$'.format(re_package), words[0])
                 req.name = match.group('package')
                 req.url = words[0]
-            elif words[0].startswith('http://') or words[0].startswith('https://'):
+            elif urlparse.urlparse(words[0]).scheme:
                 req.name = words[0]
                 req.url = words[0]
-
             else:
                 match = re.match(re_package_version, words[0]).groupdict()
                 req.name = match['package']
@@ -161,3 +164,4 @@ class Requirements(object):
 
         for req in self.reqs:
             handle.write('{}\n'.format(req))
+
