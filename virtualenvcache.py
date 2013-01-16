@@ -121,13 +121,22 @@ class VirtualEnv(object):
         self.path = path
 
     @classmethod
-    def build(cls, path, key, options):
+    def build(cls, path, key, options, force=False):
         ''' Build a virtual environment in specified path, according to given
         key and options. '''
 
         virtualenv.logger = virtualenv.Logger(
             [(virtualenv.Logger.level_for_integer(2), sys.stderr)])
 
+        # a simple check that what we want to remove looks like a ve name :)
+        if force and os.path.exists(path):
+            if len(os.path.basename(path)) == 32:
+                shutil.rmtree(path)
+            else:
+                raise AssertionError("Ah, you probably do not want to delete "
+                                     "%s, do you?" % path)
+
+        os.makedirs(path)
         virtualenv.create_environment(home_dir=path)
         ve = VirtualEnv(path)
 
@@ -143,31 +152,34 @@ class VirtualEnv(object):
 
         key.initialize(ve)
 
+        ve.mark_as_good()
+
         return ve
 
     def local_path(self, filename):
         ''' Show absolute path for file relative to virtual environment. '''
         return os.path.join(os.path.abspath(self.path), filename)
 
-    def __bad_file_name(self):
-        return self.local_path('bad')
+    def __goodmark_file_name(self):
+        return self.local_path('1335_HaXx0r_approved')
 
     def mark_as_bad(self):
         ''' Mark virtual environment as faulty. '''
-
-        with open(self.__bad_file_name(), 'w'):
-            pass
+        if os.path.exists(self.__goodmark_file_name()):
+            os.unlink(self.__goodmark_file_name())
 
     def mark_as_good(self):
         ''' Mark virtual environment as non-faulty. '''
+        with open(self.__goodmark_file_name(), 'w'):
+            pass
 
-        if os.path.exists(self.__bad_file_name()):
-            os.unlink(self.__bad_file_name())
+    def is_good(self):
+        '''Checks if given virtual environment is blessed.'''
+        return os.path.exists(self.__goodmark_file_name())
 
     def is_bad(self):
         ''' Checks if given virtual environment is faulty. '''
-
-        return os.path.exists(self.__bad_file_name())
+        return not self.is_good()
 
     def execlp(self, call, *args):
         ''' Execute a command inside virtual environment. '''
@@ -203,33 +215,31 @@ class VirtualEnvCache(object):
     def __path(self, key):
         return os.path.join(self.options.directory, key.get_key())
 
-    def __exists(self, key):
-        return os.path.exists(self.__path(key)) and \
-            not VirtualEnv(self.__path(key)).is_bad()
-
-    def __build(self, key):
-        try:
-            ve = VirtualEnv.build(self.__path(key), key, self.options)
-            ve.mark_as_good()
-        except:
-            if self.options.keep_broken:
-                VirtualEnv(self.__path(key)).mark_as_bad()
-            else:
-                shutil.rmtree(self.__path(key))
-
-            raise
-
-    def __get(self, key):
-        return VirtualEnv(self.__path(key))
-
     def get(self, key):
         ''' Get (and create if not exists) a virtual environment for specified
         key. '''
+        log.debug('try to get cached virtualenv')
 
-        if not self.__exists(key):
-            self.__build(key)
-
-        return self.__get(key)
+        log.debug('check whether virtualenv is good: %s' % self.__path(key))
+        ve = VirtualEnv(self.__path(key))
+        if ve.is_good():
+            log.debug('virtualenv is good, cache that bastard!')
+            return ve
+        else:
+            log.info('virtualenv is bad: %s' % self.__path(key))
+            try:
+                log.debug('trying to rebuild virtualenv in: %s' % self.__path(key))
+                return VirtualEnv.build(self.__path(key), key, self.options,
+                                        force=True)
+            except Exception:
+                log.exception('error ocured while building virtualenv')
+                if not self.options.keep_broken and\
+                    os.path.exists(self.__path(key)):
+                    log.debug('removing broken virtualenv')
+                    shutil.rmtree(self.__path(key))
+                else:
+                    log.debug('keeping broken virtualenv')
+                raise
 
 
 def main():
@@ -251,9 +261,15 @@ def main():
     reqs = RequirementsKey(opts)
 
     ve = VirtualEnvCache(opts).get(reqs)
+    log.debug('VE returned from VirtualEnvCache: %s' % ve)
 
-    if opts.activate_script:
-        os.symlink(ve.local_path('bin/activate'), opts.activate_script)
+    if opts.activate_script and ve:
+        activation_link = opts.activate_script
+        log.debug('want to set activation link at: %s' % activation_link)
+        if os.path.lexists(activation_link):
+            os.unlink(activation_link)
+        os.symlink(ve.local_path('bin/activate'), activation_link)
+        log.info('activation link saved to: %s' % activation_link)
 
 
 if __name__ == '__main__':
