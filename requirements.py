@@ -143,6 +143,9 @@ class Requirements(object):
                 match = re.search('#egg=({})$'.format(re_package), words[0])
                 req.name = match.group('package')
                 req.url = words[0]
+            elif words[0].startswith('http://') or words[0].startswith('https://'):
+                req.name = words[0]
+                req.url = words[0]
 
             else:
                 match = re.match(re_package_version, words[0]).groupdict()
